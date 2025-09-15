@@ -150,7 +150,7 @@ for r in range(rodadas):
     #Lembrete, para auxiliar vocês no trabalho, ainda falta a implementação
     #das variáveis que armazenam os desempenhos.
     #No final devem ser calculadas métricas estatísticas das 
-    #séries (MSE,SSE e R2)  armazenadas
+    #séries (MSE,SSE e R2)  armazenada
 
 
 
