@@ -5,7 +5,8 @@ from numpy.linalg import pinv
 def predicao(X,beta):
     return X@beta
 
-data = np.loadtxt("Solubilidade.csv",delimiter=',')
+data = np.loadtxt("EX_REGRESSÃO/Solubilidade.csv", delimiter=',')
+
 controle_figura = True
 
 
