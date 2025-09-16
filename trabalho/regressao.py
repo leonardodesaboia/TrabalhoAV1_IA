@@ -9,6 +9,19 @@ Y = data[:, 1].reshape(-1, 1)  # N x 1 vetor (coluna)
 
 N,p = X.shape
 
+# ====================================================================
+# 1. VISUALIZAÇÃO INICIAL DOS DADOS (QUESTÃO 1)
+# ====================================================================
+
+# Gráfico de espalhamento
+plt.figure(figsize=(8, 6))
+plt.scatter(data[:, 0], data[:, 1], alpha=0.6, color='blue')
+plt.xlabel('Velocidade do Vento')
+plt.ylabel('Potência Gerada')
+plt.title('Gráfico de Espalhamento - Velocidade do Vento vs Potência')
+plt.grid(True, alpha=0.3)
+
+
 #Dados com a coluna de 1s (X)
 X = np.hstack((
     np.ones((N,1)),X
