@@ -9,7 +9,7 @@ class GaussianClassifier:
     Classificador Bayesiano Gaussiano conforme os slides do professor
     Implementa os métodos: tradicional, covariâncias iguais, agregada, naive bayes e Friedman
     """
-    
+
     def __init__(self, method='traditional', lambda_reg=0.0):
         """
         Parâmetros:
@@ -38,7 +38,6 @@ class GaussianClassifier:
         self.C = len(self.classes)
         self.p, self.N = X_train.shape
         
-        # Separar dados por classe (conforme Algoritmo 1)
         X_by_class = {}
         n_by_class = {}
         
@@ -47,7 +46,6 @@ class GaussianClassifier:
             X_by_class[cls] = X_train[:, mask]
             n_by_class[cls] = np.sum(mask)
         
-        # Calcular médias por classe (Algoritmo 1, linha 3)
         self.mu = {}
         for cls in self.classes:
             self.mu[cls] = np.mean(X_by_class[cls], axis=1).reshape(self.p, 1)
@@ -57,7 +55,6 @@ class GaussianClassifier:
         for cls in self.classes:
             self.P_prior[cls] = n_by_class[cls] / self.N
         
-        # Calcular matrizes de covariância baseado no método
         if self.method == 'traditional':
             self._compute_traditional_covariance(X_by_class)
         elif self.method == 'equal_cov':
@@ -69,17 +66,15 @@ class GaussianClassifier:
         elif self.method == 'friedman':
             self._compute_friedman_covariance(X_by_class, n_by_class)
         
-        # Calcular determinantes e inversas (Algoritmo 1, linha 5)
+        
         self.Sigma_det = {}
         self.Sigma_inv = {}
         
         for cls in self.classes:
-            # Tratamento básico para matrizes singulares (mínimo necessário)
             try:
                 self.Sigma_det[cls] = np.linalg.det(self.Sigma[cls])
                 self.Sigma_inv[cls] = np.linalg.inv(self.Sigma[cls])
-            except np.linalg.LinAlgError:
-                # Adicionar pequena regularização apenas se necessário
+            except np.linalg.LinAlgError:            
                 reg_matrix = self.Sigma[cls] + 1e-6 * np.eye(self.p)
                 self.Sigma_det[cls] = np.linalg.det(reg_matrix)
                 self.Sigma_inv[cls] = np.linalg.inv(reg_matrix)
@@ -92,7 +87,7 @@ class GaussianClassifier:
     
     def _compute_equal_covariance(self, X_train):
         """Slide 50 - Covariâncias iguais (LDA)"""
-        # Uma única matriz para todo o conjunto de treino
+
         Sigma_common = np.cov(X_train)
         self.Sigma = {}
         for cls in self.classes:
@@ -121,20 +116,19 @@ class GaussianClassifier:
     
     def _compute_friedman_covariance(self, X_by_class, n_by_class):
         """Slide 54 - Regularização de Friedman"""
-        # Primeiro calcular matriz agregada
+
         Sigma_aggregated = np.zeros((self.p, self.p))
         for cls in self.classes:
             weight = n_by_class[cls] / self.N
             Sigma_i = np.cov(X_by_class[cls])
             Sigma_aggregated += weight * Sigma_i
         
-        # Aplicar fórmula de Friedman para cada classe
+        
         self.Sigma = {}
         for cls in self.classes:
             ni = n_by_class[cls]
             Sigma_i = np.cov(X_by_class[cls])
             
-            # Fórmula do slide 54
             numerator = (1 - self.lambda_reg) * ni * Sigma_i + self.lambda_reg * self.N * Sigma_aggregated
             denominator = (1 - self.lambda_reg) * ni + self.lambda_reg * self.N
             
@@ -148,21 +142,17 @@ class GaussianClassifier:
         posteriors = {}
         
         for cls in self.classes:
-            # Distância de Mahalanobis
             diff = x_test - self.mu[cls]
             mahalanobis_dist = (diff.T @ self.Sigma_inv[cls] @ diff)[0, 0]
             
             # Função discriminante (slide 45)
             if self.method == 'equal_cov' or self.method == 'aggregated':
-                # Para covariâncias iguais, termo log(det) se cancela
                 posteriors[cls] = np.log(self.P_prior[cls]) - 0.5 * mahalanobis_dist
             else:
-                # Função discriminante completa
                 posteriors[cls] = (np.log(self.P_prior[cls]) - 
                                  0.5 * np.log(self.Sigma_det[cls]) - 
                                  0.5 * mahalanobis_dist)
         
-        # Retornar classe com maior posterior (Algoritmo 1, linha 7)
         return max(posteriors, key=posteriors.get)
 
 
@@ -180,30 +170,26 @@ class MQOClassifier:
         X_train: (N × p) para MQO
         y_train: (N × C) one-hot encoded
         """
-        # Adicionar coluna de bias (intercepto)
+        # Adicionar intercepto
         X_with_bias = np.hstack([np.ones((X_train.shape[0], 1)), X_train])
         
-        # Solução MQO: W = (X^T X)^(-1) X^T Y
+        # MQO
         XtX = X_with_bias.T @ X_with_bias
         XtY = X_with_bias.T @ y_train
         
         try:
             self.W = np.linalg.inv(XtX) @ XtY
         except np.linalg.LinAlgError:
-            # Usar pseudo-inversa se necessário
             self.W = np.linalg.pinv(XtX) @ XtY
         
         self.classes = np.arange(1, y_train.shape[1] + 1)
     
     def predict(self, x_test):
         """Predição para uma amostra"""
-        # Adicionar bias
         x_with_bias = np.hstack([1, x_test.flatten()])
         
-        # Calcular scores
         scores = x_with_bias @ self.W
         
-        # Retornar classe com maior score
         return self.classes[np.argmax(scores)]
 
 
@@ -226,7 +212,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
     Validação Monte Carlo conforme especificado no trabalho
     """
     
-    # Modelos a serem testados
     models_config = [
         ('MQO tradicional', 'mqo'),
         ('Classificador Gaussiano Tradicional', 'traditional'),
@@ -238,7 +223,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
         ('Classificador Gaussiano Regularizado (Friedman lambda=0.75)', 'friedman_075')
     ]
     
-    # Armazenamento dos resultados
     results = {name: [] for name, _ in models_config}
     
     N = X_gauss.shape[1]
@@ -250,7 +234,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
         if run % 5 == 0:
             print(f"{run} ", end="", flush=True)
         
-        # Particionamento 80/20
         indices = np.random.permutation(N)
         split_idx = int(0.8 * N)
         train_idx = indices[:split_idx]
@@ -267,7 +250,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
         X_test_m = X_mqo[test_idx, :]
         y_test_labels = y_labels[test_idx]
         
-        # Testar cada modelo
         for model_name, model_type in models_config:
             try:
                 if model_type == 'mqo':
@@ -283,7 +265,7 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
                     acc = accuracy_score(y_test_labels, np.array(predictions))
                     
                 elif model_type.startswith('friedman'):
-                    # Friedman com diferentes lambdas
+                    # Friedman
                     lambda_val = float(model_type.split('_')[1]) / 100
                     clf = GaussianClassifier(method='friedman', lambda_reg=lambda_val)
                     clf.fit(X_train_g, y_train_g)
@@ -297,7 +279,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
                     acc = accuracy_score(y_test_g[0, :], np.array(predictions))
                     
                 else:
-                    # Outros métodos gaussianos
                     clf = GaussianClassifier(method=model_type)
                     clf.fit(X_train_g, y_train_g)
                     
@@ -312,7 +293,6 @@ def monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_labels, num_
                 results[model_name].append(acc)
                 
             except Exception as e:
-                # Em caso de erro, registrar acurácia 0
                 results[model_name].append(0.0)
     
     print(f"\nSimulações concluídas!")
@@ -326,11 +306,9 @@ def print_results_table(results):
     print("TABELA DE RESULTADOS - VALIDAÇÃO MONTE CARLO")
     print("="*100)
     
-    # Cabeçalho
     print(f"{'Modelos':<60} | {'Média':<10} | {'Desvio-Padrão':<13} | {'Maior Valor':<12} | {'Menor Valor':<12}")
     print("-"*60 + "|" + "-"*11 + "|" + "-"*14 + "|" + "-"*13 + "|" + "-"*13)
     
-    # Calcular e exibir estatísticas
     stats = {}
     for model_name, accuracies in results.items():
         acc_array = np.array(accuracies)
@@ -356,7 +334,6 @@ def print_results_table(results):
 def plot_results(results, stats):
     """Cria gráficos de análise dos resultados"""
     
-    # Preparar dados para os gráficos
     model_names = list(results.keys())
     nomes_curtos = [
         'MQO', 'G.Tradicional', 'G.Cov_Treino', 'G.Agregada', 
@@ -365,10 +342,8 @@ def plot_results(results, stats):
     
     cores = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
     
-    # Criar figura com múltiplos subgráficos
     fig = plt.figure(figsize=(16, 12))
     
-    # 1. Boxplot das acurácias
     plt.subplot(2, 3, 1)
     dados_boxplot = [results[name] for name in model_names]
     box_plot = plt.boxplot(dados_boxplot, labels=nomes_curtos, patch_artist=True)
@@ -382,7 +357,6 @@ def plot_results(results, stats):
     plt.xticks(rotation=45)
     plt.grid(True, alpha=0.3)
     
-    # 2. Comparação de médias
     plt.subplot(2, 3, 2)
     medias = [stats[name]['media'] for name in model_names]
     bars = plt.bar(nomes_curtos, medias, color=cores, alpha=0.8)
@@ -391,12 +365,10 @@ def plot_results(results, stats):
     plt.xticks(rotation=45)
     plt.grid(True, alpha=0.3)
     
-    # Adicionar valores nas barras
     for bar, valor in zip(bars, medias):
         plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, 
                  f'{valor:.3f}', ha='center', va='bottom', fontsize=9)
     
-    # 3. Desvio padrão
     plt.subplot(2, 3, 3)
     desvios = [stats[name]['desvio'] for name in model_names]
     bars = plt.bar(nomes_curtos, desvios, color=cores, alpha=0.8)
@@ -405,12 +377,10 @@ def plot_results(results, stats):
     plt.xticks(rotation=45)
     plt.grid(True, alpha=0.3)
     
-    # Adicionar valores nas barras
     for bar, valor in zip(bars, desvios):
         plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001, 
                  f'{valor:.3f}', ha='center', va='bottom', fontsize=9)
     
-    # 4. Comparação Máximo vs Mínimo
     plt.subplot(2, 3, 4)
     maximos = [stats[name]['maximo'] for name in model_names]
     minimos = [stats[name]['minimo'] for name in model_names]
@@ -427,7 +397,6 @@ def plot_results(results, stats):
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    # 5. Efeito da regularização Friedman
     plt.subplot(2, 3, 5)
     lambdas = [0, 0.25, 0.5, 0.75]
     modelos_friedman_nomes = [
@@ -444,11 +413,9 @@ def plot_results(results, stats):
     plt.ylabel('Acurácia Média')
     plt.grid(True, alpha=0.3)
     
-    # Adicionar valores nos pontos
     for x, y in zip(lambdas, acc_friedman):
         plt.text(x, y + 0.005, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
     
-    # 6. Ranking dos modelos
     plt.subplot(2, 3, 6)
     ranking = sorted(stats.items(), key=lambda x: x[1]['media'], reverse=True)
     nomes_ranking = [nome.split('(')[0].strip() for nome, _ in ranking]
@@ -461,14 +428,12 @@ def plot_results(results, stats):
     plt.xlabel('Acurácia Média')
     plt.grid(True, alpha=0.3)
     
-    # Adicionar valores nas barras
     for bar, valor in zip(bars, valores_ranking):
         plt.text(bar.get_width() + 0.005, bar.get_y() + bar.get_height()/2, 
                  f'{valor:.3f}', ha='left', va='center', fontsize=9)
     
     plt.tight_layout()
     
-    # Salvar e mostrar
     plt.savefig('resultados_classificadores.png', dpi=300, bbox_inches='tight')
     print("\nGráficos de resultados salvos como 'resultados_classificadores.png'")
     plt.show()
@@ -476,10 +441,8 @@ def plot_results(results, stats):
     return fig
 
 
-# EXECUÇÃO PRINCIPAL
 if __name__ == "__main__":
     
-    # 1. Carregamento dos dados
     print("TRABALHO COMPUTACIONAL - CLASSIFICADORES GAUSSIANOS")
     print("="*80)
     
@@ -492,15 +455,12 @@ if __name__ == "__main__":
     
     print(f"Dataset carregado: {data.shape}")
     
-    # Verificar organização dos dados
     if data.shape[0] == 3 and data.shape[1] == 50000:
-        # Dados organizados como (3 × 50000)
-        X_data = data[:2, :].T  # (50000 × 2)
-        y_data = data[2, :]     # (50000,)
+        X_data = data[:2, :].T 
+        y_data = data[2, :]  
     else:
-        # Dados organizados como (50000 × 3)
-        X_data = data[:, :-1]   # (50000 × 2)
-        y_data = data[:, -1]    # (50000,)
+        X_data = data[:, :-1]
+        y_data = data[:, -1]
     
     # Filtrar apenas labels válidos (1-5)
     valid_mask = (y_data >= 1) & (y_data <= 5)
@@ -512,13 +472,11 @@ if __name__ == "__main__":
     
     print(f"Dados válidos: {N} amostras, {p} características, {C} classes")
     
-    # Verificar distribuição das classes
     unique, counts = np.unique(y_data, return_counts=True)
     print("\nDistribuição das classes:")
     for cls, count in zip(unique, counts):
         print(f"Classe {int(cls)}: {count} amostras")
     
-    # 2. Visualização inicial
     print("\n2. VISUALIZAÇÃO DOS DADOS")
     print("-"*50)
     
@@ -542,50 +500,40 @@ if __name__ == "__main__":
     print("- Dados não são linearmente separáveis")
     print("- Classificadores probabilísticos são apropriados")
     
-    # 3. Organização dos dados
     print("\n3. ORGANIZAÇÃO DOS DADOS")
     print("-"*50)
-    
-    # Para modelos gaussianos: X ∈ R^(p×N), Y ∈ R^(C×N)
+
     X_gauss = X_data.T  # (2 × N)
     y_gauss = y_data.reshape(1, -1)  # (1 × N)
     
-    # Para MQO: X ∈ R^(N×p), Y ∈ R^(N×C)
     X_mqo = X_data  # (N × 2)
     y_mqo_onehot = one_hot_encode(y_data, C)  # (N × 5)
     
     print(f"Gaussianos - X: {X_gauss.shape}, y: {y_gauss.shape}")
     print(f"MQO - X: {X_mqo.shape}, y: {y_mqo_onehot.shape}")
     
-    # 4. Validação Monte Carlo
     print("\n4. VALIDAÇÃO MONTE CARLO")
     print("-"*50)
     
-    results = monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_data, num_runs=10)
+    results = monte_carlo_validation(X_gauss, y_gauss, X_mqo, y_mqo_onehot, y_data, num_runs=500)
     
-    # 5. Resultados
     stats = print_results_table(results)
     
-    # 6. Análise dos resultados
     print("\n6. ANÁLISE DOS RESULTADOS")
     print("-"*50)
     
-    # Melhor modelo
     best_model = max(stats.keys(), key=lambda k: stats[k]['media'])
     print(f"Melhor modelo: {best_model}")
     print(f"Acurácia média: {stats[best_model]['media']:.4f}")
     
-    # Ranking
     print("\nRanking dos modelos:")
     ranking = sorted(stats.items(), key=lambda x: x[1]['media'], reverse=True)
     for i, (model, stat) in enumerate(ranking):
         print(f"{i+1}. {model}: {stat['media']:.4f}")
     
-    # 7. Gráficos de análise
     print("\n7. VISUALIZAÇÃO DOS RESULTADOS")
     print("-"*50)
     
-    # Mostrar gráfico inicial dos dados EMG
     print("Mostrando gráfico de espalhamento dos dados EMG...")
     plt.figure(figsize=(10, 6))
     cores = ['red', 'blue', 'green', 'orange', 'purple']
@@ -603,7 +551,6 @@ if __name__ == "__main__":
     plt.grid(True, alpha=0.3)
     plt.show()
     
-    # Mostrar gráficos de análise dos resultados
     print("Mostrando gráficos de análise dos resultados...")
     plot_results(results, stats)
     
