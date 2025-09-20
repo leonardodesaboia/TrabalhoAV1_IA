@@ -1,10 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
+from typing import Tuple, List, Dict, Optional
 
-class GaussianClassifier:
-    def __init__(self, covariance_type='traditional', lambda_reg=0):
-        self.covariance_type = covariance_type
-        self.lambda_reg = lambda_reg
+class GaussianClassifierProblematico:
+    """
+    VERSÃO PEDAGÓGICA - DEMONSTRA OS PROBLEMAS DO MÉTODO TRADICIONAL
+    
+    Esta classe implementa o Classificador Gaussiano Tradicional SEM tratamentos
+    de exceções para demonstrar onde e por que o método falha na prática.
+    """
+    
+    def __init__(self, verbose=False):
+        self.name = "Gaussiano Tradicional [PROBLEMÁTICO]"
+        self.verbose = verbose
         self.classes = None
         self.C = None
         self.p = None
@@ -16,19 +25,29 @@ class GaussianClassifier:
         self.Sigma_det = None
         self.Sigma_inv = None
         self.P = None
+        self.erro_detalhado = None
+        self.falha_na_classe = None
 
     def fit(self, X_train, y_train):
         """
-        X_train: (p x N) - features por colunas, amostras por linhas
-        y_train: (1 x N) - labels
+        Implementação SEM tratamento de exceções - VAI FALHAR propositalmente
         """
+        if self.verbose:
+            print(f"\n>>> TENTANDO TREINAR {self.name}")
+        
         self.classes = np.unique(y_train)
         self.C = len(self.classes)
         self.p, self.N = X_train.shape
         
+        if self.verbose:
+            print(f"    Dimensões: {self.p} features, {self.N} amostras, {self.C} classes")
+        
         # Separar dados por classe
         self.X = [X_train[:, y_train[0, :] == i] for i in self.classes]
         self.n = [Xi.shape[1] for Xi in self.X]
+        
+        if self.verbose:
+            print(f"    Amostras por classe: {self.n}")
         
         # Inicializar parâmetros
         self.mu = [None] * self.C
@@ -39,6 +58,111 @@ class GaussianClassifier:
         
         # Calcular parâmetros para cada classe
         for i in range(self.C):
+            if self.verbose:
+                print(f"    Processando classe {int(self.classes[i])}...")
+            
+            self.mu[i] = np.mean(self.X[i], axis=1).reshape(self.p, 1)
+            self.P[i] = self.n[i] / self.N
+            
+            # Calcular matriz de covariância tradicional
+            self.Sigma[i] = np.cov(self.X[i])
+            
+            if self.verbose:
+                print(f"      Matriz de covariância {self.Sigma[i].shape}")
+                print(f"      Determinante: {np.linalg.det(self.Sigma[i]):.2e}")
+                print(f"      Rank da matriz: {np.linalg.matrix_rank(self.Sigma[i])}")
+                print(f"      Condition number: {np.linalg.cond(self.Sigma[i]):.2e}")
+            
+            # AQUI ESTÁ O PROBLEMA: Tentativa de inversão SEM verificação
+            try:
+                self.Sigma_det[i] = np.linalg.det(self.Sigma[i])
+                if self.verbose:
+                    print(f"      Tentando inverter matriz da classe {int(self.classes[i])}...")
+                self.Sigma_inv[i] = np.linalg.inv(self.Sigma[i])  # VAI FALHAR!
+                if self.verbose:
+                    print(f"      ✓ Inversão bem-sucedida para classe {int(self.classes[i])}")
+                
+            except np.linalg.LinAlgError as e:
+                self.erro_detalhado = str(e)
+                self.falha_na_classe = int(self.classes[i])
+                if self.verbose:
+                    print(f"      ✗ FALHA na inversão da matriz da classe {int(self.classes[i])}")
+                    print(f"      ✗ Erro: {e}")
+                    print(f"      ✗ Motivo: Matriz singular (não invertível)")
+                    print(f"      ✗ Isso acontece quando há poucas amostras ou features correlacionadas")
+                raise e  # Re-lança a exceção para interromper o treinamento
+
+    def predict(self, x_test):
+        """Método de predição (nunca será usado na versão problemática)"""
+        if self.Sigma_inv is None or any(S is None for S in self.Sigma_inv):
+            raise RuntimeError("Modelo não foi treinado com sucesso devido a matriz singular")
+        
+        posteriori = [None] * self.C
+        for i in range(self.C):
+            d_mahalanobis = ((x_test - self.mu[i]).T @ self.Sigma_inv[i] @ (x_test - self.mu[i]))[0, 0]
+            posteriori[i] = np.log(self.P[i]) - 0.5 * np.log(self.Sigma_det[i]) - 0.5 * d_mahalanobis
+        return self.classes[np.argmax(posteriori)]
+
+
+class GaussianClassifierCorrigido:
+    """
+    VERSÃO CORRIGIDA - DEMONSTRA AS SOLUÇÕES PARA OS PROBLEMAS
+    
+    Esta classe implementa as correções necessárias para tornar o 
+    Classificador Gaussiano Tradicional robusto e utilizável na prática.
+    """
+    
+    def __init__(self, covariance_type='traditional', lambda_reg=0, verbose=False):
+        self.name = "Gaussiano Tradicional [CORRIGIDO]"
+        self.covariance_type = covariance_type
+        self.lambda_reg = lambda_reg
+        self.verbose = verbose
+        self.classes = None
+        self.C = None
+        self.p = None
+        self.N = None
+        self.X = None
+        self.n = None
+        self.mu = None
+        self.Sigma = None
+        self.Sigma_det = None
+        self.Sigma_inv = None
+        self.P = None
+        self.correcoes_aplicadas = []
+
+    def fit(self, X_train, y_train):
+        """
+        Implementação COM tratamento robusto de exceções
+        """
+        if self.verbose:
+            print(f"\n>>> TREINANDO {self.name}")
+        
+        self.classes = np.unique(y_train)
+        self.C = len(self.classes)
+        self.p, self.N = X_train.shape
+        
+        if self.verbose:
+            print(f"    Dimensões: {self.p} features, {self.N} amostras, {self.C} classes")
+        
+        # Separar dados por classe
+        self.X = [X_train[:, y_train[0, :] == i] for i in self.classes]
+        self.n = [Xi.shape[1] for Xi in self.X]
+        
+        if self.verbose:
+            print(f"    Amostras por classe: {self.n}")
+        
+        # Inicializar parâmetros
+        self.mu = [None] * self.C
+        self.Sigma = [None] * self.C
+        self.Sigma_det = [None] * self.C
+        self.Sigma_inv = [None] * self.C
+        self.P = [None] * self.C
+        
+        # Calcular parâmetros para cada classe
+        for i in range(self.C):
+            if self.verbose:
+                print(f"    Processando classe {int(self.classes[i])}...")
+            
             self.mu[i] = np.mean(self.X[i], axis=1).reshape(self.p, 1)
             self.P[i] = self.n[i] / self.N
             
@@ -54,15 +178,61 @@ class GaussianClassifier:
             elif self.covariance_type == 'friedman':
                 self.Sigma[i] = self._compute_friedman_regularized(i)
             
-            # Calcular determinante e inversa (com estabilidade numérica)
+            if self.verbose:
+                print(f"      Determinante original: {np.linalg.det(self.Sigma[i]):.2e}")
+                print(f"      Condition number original: {np.linalg.cond(self.Sigma[i]):.2e}")
+            
+            # SOLUÇÕES ROBUSTAS para problemas de inversão
+            original_sigma = self.Sigma[i].copy()
+            
             try:
+                # Primeira tentativa: inversão direta
                 self.Sigma_det[i] = np.linalg.det(self.Sigma[i])
                 self.Sigma_inv[i] = np.linalg.inv(self.Sigma[i])
-            except np.linalg.LinAlgError:
-                # Matriz singular - usar pseudo-inversa + pequena regularização
-                self.Sigma[i] += 1e-6 * np.eye(self.p)  # Adicionar pequena regularização
-                self.Sigma_det[i] = np.linalg.det(self.Sigma[i])
-                self.Sigma_inv[i] = np.linalg.pinv(self.Sigma[i])  # Pseudo-inversa
+                if self.verbose:
+                    print(f"      ✓ Inversão direta bem-sucedida para classe {int(self.classes[i])}")
+                
+            except np.linalg.LinAlgError as e:
+                if self.verbose:
+                    print(f"      ⚠ Falha na inversão direta: {e}")
+                    print(f"      → Aplicando CORREÇÃO 1: Micro-regularização")
+                
+                # CORREÇÃO 1: Adicionar pequena regularização na diagonal
+                epsilon = 1e-6
+                self.Sigma[i] = original_sigma + epsilon * np.eye(self.p)
+                self.correcoes_aplicadas.append(f"Micro-regularização (ε={epsilon}) na classe {int(self.classes[i])}")
+                
+                try:
+                    self.Sigma_det[i] = np.linalg.det(self.Sigma[i])
+                    self.Sigma_inv[i] = np.linalg.inv(self.Sigma[i])
+                    if self.verbose:
+                        print(f"      ✓ Micro-regularização resolveu o problema!")
+                    
+                except np.linalg.LinAlgError:
+                    if self.verbose:
+                        print(f"      ⚠ Micro-regularização não foi suficiente")
+                        print(f"      → Aplicando CORREÇÃO 2: Pseudo-inversa")
+                    
+                    # CORREÇÃO 2: Usar pseudo-inversa de Moore-Penrose
+                    self.Sigma_det[i] = np.linalg.det(self.Sigma[i])
+                    if self.Sigma_det[i] <= 0:
+                        self.Sigma_det[i] = 1e-10  # Valor mínimo para log
+                    
+                    self.Sigma_inv[i] = np.linalg.pinv(self.Sigma[i])
+                    self.correcoes_aplicadas.append(f"Pseudo-inversa na classe {int(self.classes[i])}")
+                    if self.verbose:
+                        print(f"      ✓ Pseudo-inversa aplicada com sucesso!")
+            
+            if self.verbose:
+                print(f"      Determinante final: {self.Sigma_det[i]:.2e}")
+                print(f"      Condition number final: {np.linalg.cond(self.Sigma[i]):.2e}")
+        
+        if self.verbose and self.correcoes_aplicadas:
+            print(f"\n    CORREÇÕES APLICADAS:")
+            for correcao in self.correcoes_aplicadas:
+                print(f"      • {correcao}")
+        elif self.verbose:
+            print(f"\n    ✓ Nenhuma correção foi necessária - matrizes bem condicionadas")
 
     def _compute_traditional_covariance(self, class_idx):
         """Covariância tradicional para cada classe"""
@@ -91,6 +261,24 @@ class GaussianClassifier:
         trace_sigma = np.trace(sigma)
         identity = np.eye(self.p)
         return (1 - self.lambda_reg) * sigma + self.lambda_reg * (trace_sigma / self.p) * identity
+
+    def predict(self, x_test):
+        """Predição para uma amostra de teste"""
+        posteriori = [None] * self.C
+        for i in range(self.C):
+            d_mahalanobis = ((x_test - self.mu[i]).T @ self.Sigma_inv[i] @ (x_test - self.mu[i]))[0, 0]
+            posteriori[i] = np.log(self.P[i]) - 0.5 * np.log(self.Sigma_det[i]) - 0.5 * d_mahalanobis
+        return self.classes[np.argmax(posteriori)]
+
+
+class GaussianClassifier(GaussianClassifierCorrigido):
+    """
+    Classe principal que herda da versão corrigida
+    Mantém compatibilidade com o código existente
+    """
+    def __init__(self, covariance_type='traditional', lambda_reg=0, verbose=False):
+        super().__init__(covariance_type, lambda_reg, verbose)
+        self.name = f"Gaussiano {covariance_type.title()}"
 
     def predict(self, x_test):
         """Predição para uma amostra de teste"""
@@ -204,6 +392,15 @@ print(f"\nEstatísticas das features:")
 for i in range(p):
     print(f"Feature {i+1}: média={np.mean(X_data[:, i]):.2f}, std={np.std(X_data[:, i]):.2f}")
 
+# ORGANIZAÇÃO DOS DADOS (movido para cá para uso na demonstração)
+# Para modelos gaussianos: X ∈ R^(p×N), Y ∈ R^(C×N)
+X_gauss = X_data.T  # (p×N)
+y_gauss = y_data.reshape(1, -1)  # (1×N)
+
+# Para MQO: X ∈ R^(N×p), Y ∈ R^(N×C)
+X_mqo = X_data  # (N×p)
+y_mqo_onehot, _ = one_hot_encode(y_data, C)  # (N×C) - dados já foram filtrados
+
 # 2. VISUALIZAÇÃO INICIAL DOS DADOS
 print(f"\n2. VISUALIZAÇÃO E ANÁLISE DE SEPARABILIDADE")
 print("-" * 50)
@@ -242,17 +439,126 @@ CARACTERÍSTICAS DO MODELO IDEAL:
 - Ser robusto a outliers e ruído dos sinais EMG
 """)
 
-# 3. ORGANIZAÇÃO DOS DADOS PARA DIFERENTES MODELOS
-print(f"\n3. ORGANIZAÇÃO DOS DADOS")
+# 3. DEMONSTRAÇÃO PEDAGÓGICA: PROBLEMA vs SOLUÇÃO
+print(f"\n3. DEMONSTRAÇÃO PEDAGÓGICA: GAUSSIANO PROBLEMÁTICO vs CORRIGIDO")
+print("=" * 80)
+
+print("""
+OBJETIVO PEDAGÓGICO:
+Demonstrar por que o Classificador Gaussiano Tradicional falha na prática
+e como corrigir esses problemas com técnicas robustas.
+
+PROBLEMAS COMUNS:
+1. Matrizes de covariância singulares (não invertíveis)
+2. Poucas amostras por classe
+3. Features altamente correlacionadas
+4. Problemas de condicionamento numérico
+
+SOLUÇÕES:
+1. Micro-regularização: Σ + εI
+2. Pseudo-inversa de Moore-Penrose
+3. Regularização de Friedman
+4. Covariância agregada (pooled)
+""")
+
+# Preparar dados para demonstração
+print(f"\nPreparando dados para demonstração...")
+print(f"Usando uma amostra pequena para forçar problemas de singularidade")
+
+# Usar uma amostra muito pequena para cada classe (força problemas)
+np.random.seed(42)  # Para reprodutibilidade
+idx_demo = np.random.permutation(N)[:100]  # Apenas 100 amostras
+
+X_demo_gauss = X_gauss[:, idx_demo]
+y_demo_gauss = y_gauss[:, idx_demo]
+
+print(f"Dados para demonstração: {X_demo_gauss.shape[1]} amostras")
+
+# Verificar distribuição das classes na amostra pequena
+unique_demo, counts_demo = np.unique(y_demo_gauss[0, :], return_counts=True)
+print(f"Distribuição na amostra pequena:")
+for cls, count in zip(unique_demo, counts_demo):
+    print(f"  Classe {int(cls)}: {count} amostras")
+
+print(f"\nCom tão poucas amostras, algumas classes terão matrizes de covariância singulares!")
+
+# PARTE A: TENTATIVA COM VERSÃO PROBLEMÁTICA
+print(f"\n" + "="*80)
+print(f"PARTE A: TESTANDO VERSÃO PROBLEMÁTICA (SEM CORREÇÕES)")
+print(f"="*80)
+
+try:
+    gauss_problematico = GaussianClassifierProblematico(verbose=True)  # Mostrar detalhes apenas aqui
+    gauss_problematico.fit(X_demo_gauss, y_demo_gauss)
+    print(f"\n⚠ INESPERADO: O modelo problemático funcionou!")
+    print(f"   Isso pode acontecer por sorte com a amostra específica.")
+    sucesso_problematico = True
+    
+except Exception as e:
+    print(f"\n✓ COMPORTAMENTO ESPERADO: Falha conforme previsto!")
+    print(f"   Classe que falhou: {gauss_problematico.falha_na_classe if hasattr(gauss_problematico, 'falha_na_classe') else 'N/A'}")
+    print(f"   Erro específico: {str(e)}")
+    print(f"   Tipo do erro: {type(e).__name__}")
+    sucesso_problematico = False
+
+# PARTE B: APLICAÇÃO DA VERSÃO CORRIGIDA
+print(f"\n" + "="*80)
+print(f"PARTE B: TESTANDO VERSÃO CORRIGIDA (COM SOLUÇÕES ROBUSTAS)")
+print(f"="*80)
+
+try:
+    gauss_corrigido = GaussianClassifierCorrigido(covariance_type='traditional', verbose=True)  # Mostrar detalhes apenas aqui
+    gauss_corrigido.fit(X_demo_gauss, y_demo_gauss)
+    print(f"\n✓ SUCESSO: Versão corrigida funcionou perfeitamente!")
+    sucesso_corrigido = True
+    
+    # Teste de predição
+    x_teste = X_demo_gauss[:, 0].reshape(-1, 1)
+    pred = gauss_corrigido.predict(x_teste)
+    print(f"   Teste de predição: Classe predita = {pred}")
+    
+except Exception as e:
+    print(f"\n✗ FALHA INESPERADA na versão corrigida: {str(e)}")
+    sucesso_corrigido = False
+
+# PARTE C: COMPARAÇÃO E ANÁLISE
+print(f"\n" + "="*80)
+print(f"PARTE C: ANÁLISE COMPARATIVA")
+print(f"="*80)
+
+print(f"RESULTADOS DA DEMONSTRAÇÃO:")
+print(f"  • Versão Problemática: {'✓ Funcionou' if sucesso_problematico else '✗ Falhou (esperado)'}")
+print(f"  • Versão Corrigida:    {'✓ Funcionou' if sucesso_corrigido else '✗ Falhou'}")
+
+print(f"\nCONCLUSÕES PEDAGÓGICAS:")
+
+if not sucesso_problematico and sucesso_corrigido:
+    print(f"✓ DEMONSTRAÇÃO PERFEITA:")
+    print(f"  1. Versão tradicional falhou devido a matrizes singulares")
+    print(f"  2. Versão corrigida resolveu o problema com técnicas robustas")
+    print(f"  3. Isso mostra a importância de implementações numericamente estáveis")
+
+elif sucesso_problematico and sucesso_corrigido:
+    print(f"⚠ DEMONSTRAÇÃO PARCIAL:")
+    print(f"  1. Por sorte, a amostra não causou problemas na versão tradicional")
+    print(f"  2. Isso pode acontecer com dados bem condicionados")
+    print(f"  3. Em datasets reais, problemas são mais frequentes")
+
+else:
+    print(f"⚠ RESULTADO INESPERADO:")
+    print(f"  1. Ambas versões falharam ou ambas funcionaram")
+    print(f"  2. Pode indicar problemas nos dados ou implementação")
+
+print(f"\nIMPLICAÇÕES PRÁTICAS:")
+print(f"• SEMPRE usar implementações robustas em produção")
+print(f"• Tratar matrizes singulares é fundamental")
+print(f"• Micro-regularização é uma técnica simples e eficaz")
+print(f"• Pseudo-inversa é útil quando regularização não basta")
+print(f"• Verificar condition number das matrizes")
+
+# 4. ORGANIZAÇÃO DOS DADOS PARA VALIDAÇÃO COMPLETA
+print(f"\n4. ORGANIZAÇÃO DOS DADOS PARA VALIDAÇÃO COMPLETA")
 print("-" * 50)
-
-# Para modelos gaussianos: X ∈ R^(p×N), Y ∈ R^(C×N)
-X_gauss = X_data.T  # (p×N)
-y_gauss = y_data.reshape(1, -1)  # (1×N)
-
-# Para MQO: X ∈ R^(N×p), Y ∈ R^(N×C)
-X_mqo = X_data  # (N×p)
-y_mqo_onehot, _ = one_hot_encode(y_data, C)  # (N×C) - dados já foram filtrados
 
 print(f"Organização para Gaussianos:")
 print(f"X_gauss: {X_gauss.shape}")
@@ -261,8 +567,8 @@ print(f"\nOrganização para MQO:")
 print(f"X_mqo: {X_mqo.shape}")
 print(f"y_mqo_onehot: {y_mqo_onehot.shape}")
 
-# 4. VALIDAÇÃO MONTE CARLO
-print(f"\n4. VALIDAÇÃO MONTE CARLO (R = 50 rodadas)")
+# 5. VALIDAÇÃO MONTE CARLO
+print(f"\n5. VALIDAÇÃO MONTE CARLO (R = 50 rodadas)")
 print("-" * 50)
 
 rodadas = 50
@@ -281,6 +587,13 @@ acuracia_resultados = {
 
 print("Executando simulações...")
 print("Progresso: ", end="")
+
+# Contadores para problemas detectados
+problemas_detectados = {
+    'mqo_falhas': 0,
+    'gauss_correcoes': 0,
+    'gauss_falhas_totais': 0
+}
 
 for r in range(rodadas):
     # Mostrar progresso a cada 5 rodadas + flush para aparecer imediatamente
@@ -319,13 +632,19 @@ for r in range(rodadas):
         
         mqo_acc = accuracy_score(y_test_m, np.array(mqo_predictions))
         acuracia_resultados['mqo_tradicional'].append(mqo_acc)
-    except:
+    except Exception as e:
+        problemas_detectados['mqo_falhas'] += 1
         acuracia_resultados['mqo_tradicional'].append(0.0)
     
-    # 2. Classificador Gaussiano Tradicional
+    # 2. Classificador Gaussiano Tradicional (COM LOGGING DE PROBLEMAS)
     try:
-        gauss_trad = GaussianClassifier(covariance_type='traditional')
+        # Usando a versão corrigida mas rastreando problemas (SEM verbose para não poluir)
+        gauss_trad = GaussianClassifierCorrigido(covariance_type='traditional', verbose=False)
         gauss_trad.fit(X_train_g, y_train_g)
+        
+        # Verificar se correções foram aplicadas
+        if gauss_trad.correcoes_aplicadas:
+            problemas_detectados['gauss_correcoes'] += 1
         
         gauss_trad_predictions = []
         for i in range(X_test_g.shape[1]):
@@ -337,6 +656,7 @@ for r in range(rodadas):
         acuracia_resultados['gauss_tradicional'].append(gauss_trad_acc)
         
     except Exception as e:
+        problemas_detectados['gauss_falhas_totais'] += 1
         acuracia_resultados['gauss_tradicional'].append(0.0)
     
     # 3. Classificador Gaussiano (Cov. de todo cj. treino)
@@ -435,10 +755,23 @@ for r in range(rodadas):
     except:
         acuracia_resultados['gauss_friedman_075'].append(0.0)
 
-print("\n\nSimulações concluídas!")
+print(f"\n\nSimulações concluídas!")
 
-# 5. CÁLCULO DAS ESTATÍSTICAS E APRESENTAÇÃO DOS RESULTADOS
-print(f"\n5. RESULTADOS FINAIS - ESTATÍSTICAS DAS ACURÁCIAS")
+# Relatório de problemas detectados durante a validação
+print(f"\nRELATÓRIO DE ROBUSTEZ DURANTE A VALIDAÇÃO:")
+print(f"  • MQO - Falhas totais: {problemas_detectados['mqo_falhas']}/{rodadas} ({problemas_detectados['mqo_falhas']/rodadas*100:.1f}%)")
+print(f"  • Gaussiano - Correções aplicadas: {problemas_detectados['gauss_correcoes']}/{rodadas} ({problemas_detectados['gauss_correcoes']/rodadas*100:.1f}%)")
+print(f"  • Gaussiano - Falhas totais: {problemas_detectados['gauss_falhas_totais']}/{rodadas} ({problemas_detectados['gauss_falhas_totais']/rodadas*100:.1f}%)")
+
+if problemas_detectados['gauss_correcoes'] > 0:
+    print(f"\n✓ As correções no Classificador Gaussiano foram aplicadas em {problemas_detectados['gauss_correcoes']} rodadas")
+    print(f"  Isso demonstra a importância das técnicas de estabilização numérica!")
+else:
+    print(f"\n→ Nenhuma correção foi necessária nas {rodadas} rodadas")
+    print(f"  Isso indica que os dados EMG estão bem condicionados")
+
+# 6. CÁLCULO DAS ESTATÍSTICAS E APRESENTAÇÃO DOS RESULTADOS
+print(f"\n6. RESULTADOS FINAIS - ESTATÍSTICAS DAS ACURÁCIAS")
 print("=" * 80)
 
 # Nomes dos modelos para exibição
@@ -490,8 +823,8 @@ for i, (nome, chave) in enumerate(zip(nomes_modelos, chaves_modelos)):
 
 print("=" * 80)
 
-# 6. ANÁLISE DOS RESULTADOS
-print(f"\n6. ANÁLISE DOS RESULTADOS")
+# 7. ANÁLISE DOS RESULTADOS
+print(f"\n7. ANÁLISE DOS RESULTADOS")
 print("-" * 50)
 
 # Encontrar o melhor modelo (maior acurácia média)
@@ -511,8 +844,8 @@ for i, (chave, stats) in enumerate(ranking):
     nome = nomes_modelos[idx]
     print(f"{i+1}. {nome}: {stats['media']:.4f}")
 
-# 7. VISUALIZAÇÃO DOS RESULTADOS
-print(f"\n7. GRÁFICOS COMPARATIVOS")
+# 8. VISUALIZAÇÃO DOS RESULTADOS
+print(f"\n8. GRÁFICOS COMPARATIVOS")
 print("-" * 50)
 
 plt.figure(2, figsize=(15, 10))
@@ -590,4 +923,38 @@ print("G.cj_treino = Classificador Gaussiano (Cov. de todo conjunto treino)")
 print("G.Agregada = Classificador Gaussiano (Cov. Agregada)")
 print("Naive-Bayes = Classificador de Bayes Ingênuo")
 print("Friedman-0.25/0.5/0.75 = Classificador Gaussiano Regularizado")
-print("=" * 80)
+
+print("\n" + "="*80)
+print("RESUMO DA DEMONSTRAÇÃO PEDAGÓGICA")
+print("="*80)
+
+print("""
+PROBLEMA DEMONSTRADO:
+✗ Classificador Gaussiano Tradicional pode falhar com matrizes singulares
+✗ Isso acontece com poucas amostras ou features correlacionadas
+✗ Implementações ingênuas são vulneráveis a esses problemas
+
+SOLUÇÕES IMPLEMENTADAS:
+✓ Micro-regularização: Σ + εI (adiciona estabilidade)
+✓ Pseudo-inversa: Moore-Penrose (quando inversão falha)
+✓ Regularização de Friedman: (1-λ)Σ + λ(tr(Σ)/p)I
+✓ Covariância agregada: pooling entre classes
+
+LIÇÕES APRENDIDAS:
+1. SEMPRE implementar verificações de robustez numérica
+2. Tratar exceções específicas (LinAlgError)
+3. Usar pseudo-inversa como fallback
+4. Monitorar condition number das matrizes
+5. Regularização previne muitos problemas
+
+RELEVÂNCIA PRÁTICA:
+• Dados reais frequentemente têm problemas de condicionamento
+• Sinais EMG são ruidosos e podem ter correlações altas
+• Implementações robustas são essenciais em produção
+• Técnicas de regularização melhoram generalização
+
+Este código demonstra como transformar um algoritmo teoricamente correto
+em uma implementação praticamente utilizável e robusta.
+""")
+
+print("="*80)
