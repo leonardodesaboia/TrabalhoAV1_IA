@@ -290,9 +290,10 @@ class GaussianClassifier(GaussianClassifierCorrigido):
 
 
 class MQOClassifier:
-    def __init__(self):
+    def __init__(self, lambda_reg=1e-6):
         self.W = None
         self.classes = None
+        self.lambda_reg = lambda_reg  # λ baixo para estabilidade
         
     def fit(self, X_train, y_train):
         """
@@ -302,8 +303,10 @@ class MQOClassifier:
         # Adicionar coluna de 1s para bias
         X_with_bias = np.hstack([np.ones((X_train.shape[0], 1)), X_train])
         
-        # MQO: W = (X^T X)^(-1) X^T Y
-        self.W = np.linalg.pinv(X_with_bias.T @ X_with_bias) @ X_with_bias.T @ y_train
+        # MQO com λ baixo: W = (X^T X + λI)^(-1) X^T Y
+        XtX = X_with_bias.T @ X_with_bias
+        XtX_regularized = XtX + self.lambda_reg * np.eye(XtX.shape[0])
+        self.W = np.linalg.inv(XtX_regularized) @ X_with_bias.T @ y_train
         self.classes = np.arange(1, y_train.shape[1] + 1)
         
     def predict(self, x_test):
