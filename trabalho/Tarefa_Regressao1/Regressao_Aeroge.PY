@@ -41,6 +41,29 @@ print(f"Desvio padrão: {np.std(y):.4f}")
 print(f"Mínimo: {np.min(y):.4f}")
 print(f"Máximo: {np.max(y):.4f}")
 
+# GRÁFICO 1: Visualização inicial dos dados originais
+plt.figure(1, figsize=(10, 6))
+if p == 2:  # Se temos 2 variáveis regressoras
+    plt.scatter(X_[:, 0], y[:, 0], alpha=0.6, label='Var 1 vs Y', color='blue')
+    plt.scatter(X_[:, 1], y[:, 0], alpha=0.6, label='Var 2 vs Y', color='red')
+    plt.xlabel("Variáveis Regressoras")
+    plt.ylabel("Variável Dependente")
+    plt.title("Gráfico de Espalhamento dos Dados Originais")
+    plt.legend()
+elif p == 1:  # Se temos 1 variável regressora
+    plt.scatter(X_[:, 0], y[:, 0], edgecolor='k', alpha=0.6, color='blue')
+    plt.xlabel("Variável Regressora")
+    plt.ylabel("Variável Dependente")
+    plt.title("Gráfico de Espalhamento dos Dados Originais")
+else:  # Para mais variáveis, mostrar a primeira
+    plt.scatter(X_[:, 0], y[:, 0], alpha=0.6, edgecolor='k', color='blue')
+    plt.xlabel("Primeira Variável Regressora")
+    plt.ylabel("Variável Dependente")
+    plt.title("Gráfico de Espalhamento dos Dados Originais")
+
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+
 print(f"\n2. DISCUSSÃO SOBRE CARACTERÍSTICAS DO MODELO IDEAL")
 print("-" * 50)
 print("""
@@ -71,8 +94,24 @@ print(f"Primeiras 5 linhas de X:")
 print(X[:5, :])
 print(f"Primeiros 5 valores de y: {y[:5, 0]}")
 
-# GRÁFICO COMBINADO: Dados Originais + Comparação de Modelos
-print("\nGerando gráfico combinado: Dados + Todos os Modelos...")
+# 3. VALIDAÇÃO MONTE CARLO
+print(f"\n4. VALIDAÇÃO MONTE CARLO (R = 500 rodadas)")
+print("-" * 50)
+
+rodadas = 500
+
+# Armazenamento dos resultados RSS para cada modelo
+rss_resultados = {
+    'media_var_dep': [],
+    'mqo_tradicional': [],
+    'ridge_025': [],
+    'ridge_050': [],
+    'ridge_075': [],
+    'ridge_100': []
+}
+
+# GRÁFICO 2: COMPARAÇÃO DE TODOS OS MODELOS (PRINCIPAL!)
+print("Gerando gráfico de comparação de todos os modelos...")
 
 # Usar uma amostra para demonstrar os modelos visualmente
 sample_size = min(200, N)
@@ -98,108 +137,56 @@ y_pred_050_vis = predicao(X_sample, beta_ridge_050_vis)
 y_pred_075_vis = predicao(X_sample, beta_ridge_075_vis)
 y_pred_100_vis = predicao(X_sample, beta_ridge_100_vis)
 
-plt.figure(1, figsize=(14, 8))
+plt.figure(2, figsize=(16, 8))
 
-if p == 1:  # Para 1 variável regressora - ESTILO PROFISSIONAL
+if p == 1:  # Para 1 variável regressora - LINHAS SOBREPOSTAS
     # Ordenar dados para visualização mais clara das linhas
     sort_idx = np.argsort(X_sample[:, 1])  # Ordenar pela variável regressora
     X_sorted = X_sample[sort_idx, 1]
     y_sorted = y_sample[sort_idx, 0]
     
-    # DADOS REAIS - Círculos azuis profissionais
-    plt.scatter(X_sorted, y_sorted, color='steelblue', alpha=0.7, s=40, 
-               edgecolor='darkblue', linewidth=0.5, label='Dados de Teste', zorder=10)
+    # Dados reais
+    plt.scatter(X_sorted, y_sorted, color='black', alpha=0.7, s=20, label='Dados Reais', zorder=10)
     
-    # MODELOS - Linhas diferenciadas profissionalmente
-    plt.plot(X_sorted, y_pred_media_vis[sort_idx, 0], ':', linewidth=3, 
-             color='red', label='Modelo Média', alpha=0.9)
-    plt.plot(X_sorted, y_pred_mqo_vis[sort_idx, 0], '-', linewidth=2.5, 
-             color='black', label='MQO Tradicional', alpha=0.9)
-    plt.plot(X_sorted, y_pred_025_vis[sort_idx, 0], '--', linewidth=2, 
-             color='green', label='MQO Reg. (λ=0.25)', alpha=0.9)
-    plt.plot(X_sorted, y_pred_050_vis[sort_idx, 0], '--', linewidth=2, 
-             color='orange', label='MQO Reg. (λ=0.5)', alpha=0.9)
-    plt.plot(X_sorted, y_pred_075_vis[sort_idx, 0], '--', linewidth=2, 
-             color='purple', label='MQO Reg. (λ=0.75)', alpha=0.9)
-    plt.plot(X_sorted, y_pred_100_vis[sort_idx, 0], '--', linewidth=2, 
-             color='brown', label='MQO Reg. (λ=1.0)', alpha=0.9)
+    # Predições dos modelos com CORES DIFERENTES
+    plt.plot(X_sorted, y_pred_media_vis[sort_idx, 0], '--', linewidth=4, color='red', label='Média da variável dependente', alpha=0.8)
+    plt.plot(X_sorted, y_pred_mqo_vis[sort_idx, 0], '-', linewidth=3, color='blue', label='MQO tradicional', alpha=0.9)
+    plt.plot(X_sorted, y_pred_025_vis[sort_idx, 0], '-', linewidth=2.5, color='green', label='MQO regularizado (0,25)', alpha=0.9)
+    plt.plot(X_sorted, y_pred_050_vis[sort_idx, 0], '-', linewidth=2.5, color='orange', label='MQO regularizado (0,5)', alpha=0.9)
+    plt.plot(X_sorted, y_pred_075_vis[sort_idx, 0], '-', linewidth=2.5, color='purple', label='MQO regularizado (0,75)', alpha=0.9)
+    plt.plot(X_sorted, y_pred_100_vis[sort_idx, 0], '-', linewidth=2.5, color='brown', label='MQO regularizado (1)', alpha=0.9)
     
-    # Configuração profissional dos eixos
-    plt.xlabel('Variável Regressora', fontsize=12, fontweight='bold')
-    plt.ylabel('Potência Gerada', fontsize=12, fontweight='bold')
-    plt.title('Modelos Ajustados - Dados de Teste', fontsize=14, fontweight='bold', pad=20)
+    plt.xlabel('Variável Regressora', fontsize=12)
+    plt.ylabel('Variável Dependente', fontsize=12)
+    plt.title('🔥 COMPARAÇÃO DE TODOS OS MODELOS DE REGRESSÃO 🔥', fontsize=16, fontweight='bold')
     
-    # Grid pontilhado profissional
-    plt.grid(True, linestyle=':', alpha=0.6, color='gray')
+else:  # Para múltiplas variáveis - SCATTER PREDITO vs REAL
+    plt.scatter(y_sample[:, 0], y_pred_media_vis[:, 0], alpha=0.7, s=40, color='red', label='Média da variável dependente')
+    plt.scatter(y_sample[:, 0], y_pred_mqo_vis[:, 0], alpha=0.7, s=40, color='blue', label='MQO tradicional')
+    plt.scatter(y_sample[:, 0], y_pred_025_vis[:, 0], alpha=0.7, s=40, color='green', label='MQO regularizado (0,25)')
+    plt.scatter(y_sample[:, 0], y_pred_050_vis[:, 0], alpha=0.7, s=40, color='orange', label='MQO regularizado (0,5)')
+    plt.scatter(y_sample[:, 0], y_pred_075_vis[:, 0], alpha=0.7, s=40, color='purple', label='MQO regularizado (0,75)')
+    plt.scatter(y_sample[:, 0], y_pred_100_vis[:, 0], alpha=0.7, s=40, color='brown', label='MQO regularizado (1)')
     
-    # Legenda interna profissional
-    plt.legend(loc='lower right', frameon=True, fancybox=True, shadow=True, 
-              fontsize=10, framealpha=0.95)
-    
-else:  # Para múltiplas variáveis - SCATTER PROFISSIONAL
-    # DADOS REAIS - Destacados em azul
-    plt.scatter(y_sample[:, 0], y_sample[:, 0], color='steelblue', alpha=0.8, s=50,
-               edgecolor='darkblue', linewidth=0.5, label='Dados Reais (y=x)', zorder=10)
-    
-    # MODELOS - Scatter diferenciado
-    plt.scatter(y_sample[:, 0], y_pred_media_vis[:, 0], alpha=0.7, s=40, 
-               color='red', marker='s', label='Modelo Média')
-    plt.scatter(y_sample[:, 0], y_pred_mqo_vis[:, 0], alpha=0.7, s=40, 
-               color='black', marker='o', label='MQO Tradicional')
-    plt.scatter(y_sample[:, 0], y_pred_025_vis[:, 0], alpha=0.7, s=40, 
-               color='green', marker='^', label='MQO Reg. (λ=0.25)')
-    plt.scatter(y_sample[:, 0], y_pred_050_vis[:, 0], alpha=0.7, s=40, 
-               color='orange', marker='v', label='MQO Reg. (λ=0.5)')
-    plt.scatter(y_sample[:, 0], y_pred_075_vis[:, 0], alpha=0.7, s=40, 
-               color='purple', marker='D', label='MQO Reg. (λ=0.75)')
-    plt.scatter(y_sample[:, 0], y_pred_100_vis[:, 0], alpha=0.7, s=40, 
-               color='brown', marker='*', label='MQO Reg. (λ=1.0)')
-    
-    # Linha de referência
+    # Linha de referência (predição perfeita)
     min_val = min(np.min(y_sample), 
                   np.min([y_pred_media_vis, y_pred_mqo_vis, y_pred_025_vis, 
                          y_pred_050_vis, y_pred_075_vis, y_pred_100_vis]))
     max_val = max(np.max(y_sample), 
                   np.max([y_pred_media_vis, y_pred_mqo_vis, y_pred_025_vis, 
                          y_pred_050_vis, y_pred_075_vis, y_pred_100_vis]))
-    plt.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.8, 
-             linewidth=2, label='Predição Perfeita')
+    plt.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.8, linewidth=2, label='Predição Perfeita')
     
-    plt.xlabel('Valores Reais', fontsize=12, fontweight='bold')
-    plt.ylabel('Valores Preditos', fontsize=12, fontweight='bold')
-    plt.title('Modelos Ajustados - Predito vs Real (Dados de Teste)', 
-              fontsize=14, fontweight='bold', pad=20)
-    
-    # Grid pontilhado
-    plt.grid(True, linestyle=':', alpha=0.6, color='gray')
-    
-    # Legenda profissional
-    plt.legend(loc='lower right', frameon=True, fancybox=True, shadow=True, 
-              fontsize=10, framealpha=0.95)
+    plt.xlabel('Valores Reais', fontsize=12)
+    plt.ylabel('Valores Preditos', fontsize=12)
+    plt.title('🔥 COMPARAÇÃO DE TODOS OS MODELOS - Predito vs Real 🔥', fontsize=16, fontweight='bold')
 
-# Bordas limpas
-plt.gca().spines['top'].set_visible(False)
-plt.gca().spines['right'].set_visible(False)
-plt.gca().spines['left'].set_linewidth(0.5)
-plt.gca().spines['bottom'].set_linewidth(0.5)
-
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 
-# 3. VALIDAÇÃO MONTE CARLO
-print(f"\n4. VALIDAÇÃO MONTE CARLO (R = 500 rodadas)")
-print("-" * 50)
-
-rodadas = 500
-
-# Armazenamento dos resultados RSS para cada modelo
-rss_resultados = {
-    'media_var_dep': [],
-    'mqo_tradicional': [],
-    'ridge_025': [],
-    'ridge_050': [],
-    'ridge_075': [],
-    'ridge_100': []
-}
+print("Executando simulações...")
+print("Progresso: ", end="")
 
 for r in range(rodadas):
     # Mostrar progresso
@@ -343,81 +330,66 @@ for lambda_val, rss_medio in zip(lambdas, rss_medios_ridge):
 print(f"\n7. GRÁFICOS DE ANÁLISE ESTATÍSTICA")
 print("-" * 50)
 
-# Gráficos de análise estatística com estilo profissional
-plt.figure(2, figsize=(15, 10))
-
-# Configuração global para estilo profissional
-plt.style.use('default')
+# Gráficos de análise estatística
+plt.figure(3, figsize=(15, 10))
 
 plt.subplot(2, 2, 1)
 dados_boxplot = [rss_resultados[chave] for chave in chaves_modelos]
 nomes_curtos = ['Média', 'MQO', 'R(0.25)', 'R(0.5)', 'R(0.75)', 'R(1.0)']
-cores_box = ['red', 'black', 'green', 'orange', 'purple', 'brown']
+cores_box = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
 box_plot = plt.boxplot(dados_boxplot, labels=nomes_curtos, patch_artist=True)
 for patch, cor in zip(box_plot['boxes'], cores_box):
     patch.set_facecolor(cor)
-    patch.set_alpha(0.6)
-    patch.set_edgecolor('black')
-    patch.set_linewidth(1)
-plt.title('Distribuição dos RSS por Modelo', fontsize=12, fontweight='bold', pad=15)
-plt.ylabel('RSS', fontsize=11, fontweight='bold')
+    patch.set_alpha(0.7)
+plt.title('Distribuição dos RSS por Modelo')
+plt.ylabel('RSS')
 plt.xticks(rotation=45)
-plt.grid(True, linestyle=':', alpha=0.6, color='gray')
-plt.gca().spines['top'].set_visible(False)
-plt.gca().spines['right'].set_visible(False)
+plt.grid(True, alpha=0.3)
 
-# Gráfico 2: RSS médio vs λ - Estilo profissional
+# Gráfico 2: RSS médio vs λ 
 plt.subplot(2, 2, 2)
-plt.plot(lambdas, rss_medios_ridge, 'ko-', linewidth=2.5, markersize=8, 
-         markerfacecolor='steelblue', markeredgecolor='black', markeredgewidth=1)
-plt.title('Efeito da Regularização Ridge', fontsize=12, fontweight='bold', pad=15)
-plt.xlabel('Parâmetro λ', fontsize=11, fontweight='bold')
-plt.ylabel('RSS Médio', fontsize=11, fontweight='bold')
-plt.grid(True, linestyle=':', alpha=0.6, color='gray')
-plt.gca().spines['top'].set_visible(False)
-plt.gca().spines['right'].set_visible(False)
+plt.plot(lambdas, rss_medios_ridge, 'bo-', linewidth=3, markersize=10)
+plt.title('Efeito da Regularização Ridge')
+plt.xlabel('Parâmetro λ')
+plt.ylabel('RSS Médio')
+plt.grid(True, alpha=0.3)
 
-# Gráfico 3: Comparação de médias - Estilo profissional
+# Gráfico 3: Comparação de médias
 plt.subplot(2, 2, 3)
 medias_rss = [estatisticas[chave]['media'] for chave in chaves_modelos]
-cores = ['red', 'black', 'green', 'orange', 'purple', 'brown']
-bars = plt.bar(nomes_curtos, medias_rss, color=cores, alpha=0.7, 
-               edgecolor='black', linewidth=1)
-plt.title('RSS Médio por Modelo', fontsize=12, fontweight='bold', pad=15)
-plt.ylabel('RSS Médio', fontsize=11, fontweight='bold')
+cores = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
+bars = plt.bar(nomes_curtos, medias_rss, color=cores, alpha=0.8)
+plt.title('RSS Médio por Modelo')
+plt.ylabel('RSS Médio')
 plt.xticks(rotation=45)
-plt.grid(True, linestyle=':', alpha=0.6, color='gray', axis='y')
-plt.gca().spines['top'].set_visible(False)
-plt.gca().spines['right'].set_visible(False)
+plt.grid(True, alpha=0.3)
 
-# Adicionar valores nas barras com estilo profissional
+# Adicionar valores nas barras
 for bar, valor in zip(bars, medias_rss):
     plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01*max(medias_rss), 
-             f'{valor:.0f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+             f'{valor:.1f}', ha='center', va='bottom', fontsize=9)
 
-# Gráfico 4: Desvio padrão - Estilo profissional
+# Gráfico 4: Desvio padrão dos modelos
 plt.subplot(2, 2, 4)
 desvios_rss = [estatisticas[chave]['desvio'] for chave in chaves_modelos]
-bars = plt.bar(nomes_curtos, desvios_rss, color=cores, alpha=0.7, 
-               edgecolor='black', linewidth=1)
-plt.title('Desvio Padrão do RSS por Modelo', fontsize=12, fontweight='bold', pad=15)
-plt.ylabel('Desvio Padrão RSS', fontsize=11, fontweight='bold')
+bars = plt.bar(nomes_curtos, desvios_rss, color=cores, alpha=0.8)
+plt.title('Desvio Padrão do RSS por Modelo')
+plt.ylabel('Desvio Padrão RSS')
 plt.xticks(rotation=45)
-plt.grid(True, linestyle=':', alpha=0.6, color='gray', axis='y')
-plt.gca().spines['top'].set_visible(False)
-plt.gca().spines['right'].set_visible(False)
+plt.grid(True, alpha=0.3)
 
 # Adicionar valores nas barras
 for bar, valor in zip(bars, desvios_rss):
     plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01*max(desvios_rss), 
-             f'{valor:.0f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+             f'{valor:.1f}', ha='center', va='bottom', fontsize=9)
 
-plt.tight_layout(pad=3.0)
+plt.tight_layout()
 
 # MOSTRAR TODOS OS GRÁFICOS SIMULTANEAMENTE
 plt.show()
 
-print("\nAnálise concluída com estilo profissional!")
-print("Figure 1: Modelos Ajustados - Dados de Teste (Estilo Profissional)")
-print("Figure 2: Análises Estatísticas Detalhadas (Estilo Profissional)")
+print("\n🎉 Análise concluída! Verifique os 3 gráficos:")
+print("📊 Figure 1: Dados originais")
+print("🔥 Figure 2: COMPARAÇÃO DE TODOS OS MODELOS (cores diferentes)")
+print("📈 Figure 3: Análises estatísticas")
 print("="*80)
